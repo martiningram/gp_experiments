@@ -1,3 +1,5 @@
+library(pdist)
+
 full_rbf_kernel <- function(v1, v2, l, tau) {
   # This is the non-squared distance matrix.
   if (identical(v1, v2)) {
@@ -10,6 +12,12 @@ full_rbf_kernel <- function(v1, v2, l, tau) {
   distances <- as.matrix(distances)
   kernel_matrix <- exp(-distances^2 / (2 * l^2))
   return(tau^2 * kernel_matrix)
+}
+
+cholesky_inverse <- function(matrix_to_invert) {
+
+  return(chol2inv(chol(matrix_to_invert)))
+
 }
 
 predict_points <- function(x_train, x_new, sigma_noise, y, kernel_fun) {
