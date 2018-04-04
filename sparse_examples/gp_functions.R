@@ -1,4 +1,5 @@
 library(pdist)
+library(ggplot2)
 
 full_rbf_kernel <- function(v1, v2, l, tau) {
   # This is the non-squared distance matrix.
@@ -12,6 +13,16 @@ full_rbf_kernel <- function(v1, v2, l, tau) {
   distances <- as.matrix(distances)
   kernel_matrix <- exp(-distances^2 / (2 * l^2))
   return(tau^2 * kernel_matrix)
+}
+
+diag_rbf_kernel <- function(v1, v2, l, tau) {
+  if (identical(v1, v2)) {
+    return (tau^2 * rep(1, dim(v1)[1]))
+  }
+  else {
+    print('Not implemented!')
+    stop()
+  }
 }
 
 cholesky_inverse <- function(matrix_to_invert) {
@@ -92,4 +103,40 @@ optimise_and_fit_rbf_gp <- function(x_train, y_train, x_new, start_sigma = 10,
   return(list('predictions' = predictions,
               'hyperparameters' = param_results))
 
+}
+
+plot_gp <- function(x, mean, covariance, sigma, x_train = NULL, y_train = NULL) {
+  
+  vars <- diag(covariance)
+  
+  plot_frame <- data.frame(x = x,
+                           means = mean,
+                           vars = diag(covariance),
+                           vars_with_noise = diag(covariance) + sigma^2)
+  
+  p <- ggplot(data = plot_frame, aes(x = x, y = means)) +
+    geom_point(aes(colour = 'Mean')) +
+    geom_ribbon(aes(ymin = means - 2 * sqrt(vars),
+                    ymax = means + 2 * sqrt(vars),
+                    fill = 'Process noise'),
+                alpha = 0.2) +
+    geom_ribbon(aes(ymin = means - 2 * sqrt(vars_with_noise),
+                    ymax = means + 2 * sqrt(vars_with_noise),
+                    fill = 'Measurement noise'),
+                alpha = 0.2) +
+    geom_line(aes(colour = 'Mean')) +
+    theme_classic()
+  
+  if (!(is.null(x_train)) & !(is.null(y_train))) {
+    train_df <- data.frame(x = x_train,
+                           y = y_train)
+    
+    p <- p +     
+      geom_point(data = train_df, aes(x = x, y = y, 
+                                      colour = 'Observations'), 
+                            inherit.aes=FALSE)
+  }
+  
+  return(p)
+  
 }

@@ -22,10 +22,12 @@ full_results <- fit[['predictions']]
 hyperparams <- fit_marginal_likelihood_rbf(as.matrix(x), y)
 kernel_fun <- function(x1, x2) full_rbf_kernel(x1, x2, l = hyperparams[['l']],
                                                tau = hyperparams[['tau']])
-inducing <- seq(min(x), max(x), length.out = 10)
-dic_results <- calculate_dic(hyperparams[['sigma']], as.matrix(inducing),
-                             as.matrix(x), y, as.matrix(test_points),
-                             kernel_fun)
+diag_kernel_fun <- function(x1, x2) diag_rbf_kernel(x1, x2, l = hyperparams[['l']],
+                                                    tau = hyperparams[['tau']])
+inducing <- seq(min(x), max(x), length.out = 50)
+dic_results <- calculate_fitc(hyperparams[['sigma']], as.matrix(inducing),
+                              as.matrix(x), y, as.matrix(test_points),
+                              kernel_fun, diag_kernel_fun)
 
 dic_vars <- diag(dic_results$cov)
 
