@@ -1,11 +1,13 @@
 source('./gp_functions.R')
 
 
-calculate_q <- function(kernel_fun, inducing, a, b) {
+tol <- 1e-6
+
+calculate_q <- function(kernel_fun, inducing, a, b, tol = 1e-6) {
 
   k_au <- kernel_fun(a, inducing)
   k_ub <- kernel_fun(inducing, b)
-  k_uu <- kernel_fun(inducing, inducing)
+  k_uu <- kernel_fun(inducing, inducing) + diag(nrow(inducing)) * tol
   k_uu_inv <- cholesky_inverse(k_uu)
 
   return(k_au %*% k_uu_inv %*% k_ub)
@@ -91,7 +93,7 @@ calculate_fitc <- function(sigma_noise, inducing, x_train, y_train, x_new,
 
 calculate_fitc_naive <- function(sigma_noise, inducing, x_train, y_train,
                                  x_new, kernel_fun, diag_kernel_fun) {
-
+  # A naive, non-optimised implementation
   k_star_u <- kernel_fun(x_new, inducing)
   k_uu <- kernel_fun(inducing, inducing)
   k_uu_inv <- cholesky_inverse(k_uu + (diag(nrow(k_uu)) * 1e-6))
@@ -111,5 +113,59 @@ calculate_fitc_naive <- function(sigma_noise, inducing, x_train, y_train,
   fitc_cov <- k_star_star - (q_star_f %*% summed_inv %*% t(q_star_f))
 
   return(list('mean' = fitc_mean, 'cov' = fitc_cov))
+
+}
+
+calculate_fic_naive <- function(sigma_noise, inducing, x_train, y_train,
+                                x_new, kernel_fun, diag_kernel_fun) {
+  # A naive version of FIC which just does exact GP inference with the FIC
+  # kernel
+
+  new_kernel <- function(v1, v2) {
+    # Calculate the SoR kernel
+    sor_kernel <- calculate_q(kernel_fun, inducing, v1, v2)
+    # Adapt it with the diagonal
+    diag_kernel <- diag_kernel_fun(v1, v2)
+    diag(sor_kernel) <- diag_kernel
+    return(sor_kernel)
+  }
+
+  return(predict_points(x_train, x_new, sigma_noise, y_train, new_kernel))
+
+}
+
+calculate_fic <- function(sigma_noise, inducing, x_train, y_train, x_new,
+                          kernel_fun, diag_kernel_fun) {
+
+  # Calculate f, the diagonal correction matrix
+  diagonal_kff <- diag_kernel_fun(x_train, x_train)
+
+  # We may be able to optimise this as we only care about the diagonal:
+  q_ff <- calculate_q(kernel_fun, inducing, x_train, x_train)
+  f <- (diagonal_kff - diag(q_ff) + sigma_noise^2)
+  f_inv <- 1. / f * diag(length(f)) # As a diagonal matrix
+
+  # Calculate the main inverse using the woodbury version
+  k_uu <- kernel_fun(inducing, inducing)
+  k_fu <- kernel_fun(x_train, inducing)
+
+  to_invert <- k_uu + t(k_fu) %*% f_inv %*% k_fu
+  main_inv <- cholesky_inverse(to_invert + diag(nrow(to_invert)) * tol)
+  wood <- f_inv - f_inv %*% k_fu %*% main_inv %*% t(k_fu) %*% f_inv
+
+  fic_kernel <- function(v1, v2) {
+    new_kernel <- calculate_q(kernel_fun, inducing, v1, v2)
+    correction <- diag_kernel_fun(v1, v2)
+    diag(new_kernel) <- correction
+    return(new_kernel)
+  }
+
+  k_star_x <- fic_kernel(x_new, x_train)
+  k_star_star <- fic_kernel(x_new, x_new)
+
+  fic_mean <- k_star_x %*% wood %*% y_train
+  fic_cov <- k_star_star - k_star_x %*% wood %*% t(k_star_x)
+
+  return(list('mean' = fic_mean, 'cov' = fic_cov))
 
 }

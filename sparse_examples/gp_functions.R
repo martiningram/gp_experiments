@@ -20,8 +20,14 @@ diag_rbf_kernel <- function(v1, v2, l, tau) {
     return (tau^2 * rep(1, dim(v1)[1]))
   }
   else {
-    print('Not implemented!')
-    stop()
+    # Make them conformable
+    max_dim <- min(nrow(v1), nrow(v2))
+    v1 <- v1[1:max_dim, ]
+    v2 <- v2[1:max_dim, ]
+    
+    # Calculate the row-wise square distances
+    row_diffs <- exp(-((v1 - v2) %*% (v1 - v2)) / (2 * l^2))
+    return (tau^2 * row_diffs)
   }
 }
 
